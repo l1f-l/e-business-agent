@@ -1,0 +1,37 @@
+# Python
+backend/.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# 数据（可重建：SQLite 建表种子 / Chroma 向量库 / bge 模型权重）
+backend/data/chroma/
+backend/data/chroma_test/
+backend/data/models/
+backend/data/*.db
+backend/data/*.sqlite3
+
+# 前端
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+*.tsbuildinfo
+
+# 环境变量（只保留 .env.example）
+.env
+.env.*
+!.env.example
+
+# 系统
+.DS_Store
+Thumbs.db
+
+# 演示隧道（二进制 + 日志，运行时自动下载）
+tools/cloudflared.exe
+tools/*.log
+
+# create-next-app 留下的空仓库（已移出，可删）
+frontend/.git.scaffold.bak/
+
+# agent 工作区（记忆/临时上下文，不对外）
+.workbuddy/
