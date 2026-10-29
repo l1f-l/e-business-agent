@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     embedding_provider: str = "bge"
     bge_model: str = "BAAI/bge-small-zh-v1.5"
     embedding_dim: int = 512
+    embedding_init_timeout: float = 150.0  # fastembed 下载/加载上限，超时自动降级 hash
     hf_endpoint: str = ""  # e.g. https://hf-mirror.com for faster download in CN
 
     # Retrieval
@@ -65,6 +66,7 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:3000"
     data_dir: Path = DATA_DIR
     db_file: str = ""  # 留空用 shop.db；测试用 test_shop.db 隔离
+    web_dist: Path = BASE_DIR / "web"  # 单端口部署时前端静态产物（next export 的 out/）
 
     @property
     def chroma_dir(self) -> Path:

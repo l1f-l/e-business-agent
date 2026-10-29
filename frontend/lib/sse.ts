@@ -10,12 +10,13 @@ export async function streamChat(
   signal?: AbortSignal,
 ): Promise<void> {
   const token = getToken();
-  const res = await fetch("/api/chat", {
+  const res = await fetch("/api/chat/stream", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Accept: "text/event-stream",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      // 双头并行：Authorization 常规部署用，X-Auth-Token 给会覆写 Authorization 的网关用
+      ...(token ? { Authorization: `Bearer ${token}`, "X-Auth-Token": token } : {}),
     },
     body: JSON.stringify(body),
     signal,

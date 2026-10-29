@@ -14,6 +14,7 @@ backend/data/*.sqlite3
 # 前端
 frontend/node_modules/
 frontend/.next/
+frontend/.next-static/
 frontend/out/
 *.tsbuildinfo
 
@@ -35,3 +36,13 @@ frontend/.git.scaffold.bak/
 
 # agent 工作区（记忆/临时上下文，不对外）
 .workbuddy/
+
+# 单端口部署产物（含 .env 密钥，由 scripts/build_deploy.py 生成）
+dist/
+.trash/
+.deploy-web-build/
+frontend/.api_dev_backup/
+
+# 发布应用的本地标记文件
+.wbapp_*.genie
+dist-old*/

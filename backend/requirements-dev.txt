@@ -1,0 +1,7 @@
+# 开发和测试额外依赖；线上单端口部署不需要装这些
+#   pip install -r requirements.txt -r requirements-dev.txt
+pytest==8.3.4
+pytest-asyncio==0.25.0
+httpx==0.28.1
+# 可选：Session 存 Redis 时才需要（SESSION_BACKEND=redis）
+# redis==5.2.1

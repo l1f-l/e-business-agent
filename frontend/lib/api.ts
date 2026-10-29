@@ -29,7 +29,11 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const token = getToken();
   const headers = new Headers(init.headers);
   if (!headers.has("Content-Type") && init.body) headers.set("Content-Type", "application/json");
-  if (token) headers.set("Authorization", `Bearer ${token}`);
+  if (token) {
+    // 同时带两个头：Authorization 给本地/普通部署，X-Auth-Token 给会覆写 Authorization 的网关
+    headers.set("Authorization", `Bearer ${token}`);
+    headers.set("X-Auth-Token", token);
+  }
 
   const res = await fetch(path, { ...init, headers, cache: "no-store" });
 

@@ -14,9 +14,10 @@ import logging
 import math
 import os
 import re
+import threading
 from functools import lru_cache
 from pathlib import Path
-from typing import Sequence
+from typing import Callable, Sequence
 
 from app.config import settings
 
@@ -151,6 +152,27 @@ class BgeEmbedding:
         return out
 
 
+def _bounded_init(factory: Callable[[], object], timeout: float) -> object:
+    """在子线程里初始化，超时就放弃 —— 沙箱里模型下载卡住时不能拖死整个启动。"""
+    box: dict[str, object] = {}
+    done = threading.Event()
+
+    def _work() -> None:
+        try:
+            box["value"] = factory()
+        except BaseException as exc:  # noqa: BLE001 - 原样抛回调用方
+            box["error"] = exc
+        finally:
+            done.set()
+
+    threading.Thread(target=_work, name="embedder-init", daemon=True).start()
+    if not done.wait(timeout):
+        raise TimeoutError(f"初始化超过 {timeout:.0f}s（多半卡在模型下载）")
+    if "error" in box:
+        raise box["error"]  # type: ignore[misc]
+    return box["value"]
+
+
 class Embedder:
     def __init__(self, primary: object, fallback_hash: HashEmbedding) -> None:
         self._primary = primary
@@ -176,13 +198,13 @@ def get_embedder() -> Embedder:
 
     # 本地有 ONNX 就只认本地；否则才去联网（避免每次启动卡在下载重试上）
     if (MODEL_DIR / "onnx" / "model.onnx").exists():
-        candidates: tuple = (BgeOnnxEmbedding,)
+        candidates: tuple = ((BgeOnnxEmbedding, 60.0),)
     else:
-        candidates = (BgeEmbedding,)
+        candidates = ((BgeEmbedding, settings.embedding_init_timeout),)
 
-    for factory in candidates:
+    for factory, budget in candidates:
         try:
-            embedder = factory()
+            embedder = _bounded_init(factory, budget)
             logger.info("使用嵌入后端：%s", type(embedder).__name__)
             return Embedder(embedder, fallback)
         except Exception as exc:  # noqa: BLE001

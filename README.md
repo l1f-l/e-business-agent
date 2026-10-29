@@ -3,6 +3,9 @@
 基于 **DeepSeek + Chroma 双路 RAG + Function Calling + JWT + SSE 流式** 的电商导购 / 客服演示项目。
 前端 Next.js + Tailwind，后端 FastAPI，全部数据本地模拟（SQLite + Chroma），无需外部服务即可跑通。
 
+> **在线体验**：https://shoppilot-agent.app.workbuddy.host/?sharecode=BKX3XT2KHG
+> 演示账号 `u1001` / `shop1234`（带 2 笔订单，方便试查单和退款），也可以直接注册新账号。
+
 ```
 用户：500 元以内的降噪耳机，帮我加进购物车
 AI  ：[计划] 思考 → 检索商品 → 调用加购工具 → 生成回复      ← 多步进度条
@@ -72,6 +75,7 @@ cd backend
 python -m venv .venv
 .venv/Scripts/activate          # macOS/Linux: source .venv/bin/activate
 pip install -r requirements.txt
+pip install -r requirements-dev.txt   # 跑测试才需要（pytest / httpx）
 cp .env.example .env            # 填入 DEEPSEEK_API_KEY 与 JWT_SECRET
 
 python scripts/fetch_model.py   # 下载 bge-small-zh-v1.5 ONNX（约 95MB，走 hf-mirror）
@@ -132,6 +136,39 @@ tools/cloudflared.exe tunnel --url http://127.0.0.1:3000
 | `localhost:3000` 也打不开 | 本机服务挂了 | 看那个最小化的 cmd 窗口里的报错 |
 
 另外：电脑睡眠、切换 Wi-Fi（家里→公司）、开关节点/代理，都会重置路由并掐断隧道。
+
+## 单端口部署（长期在线的分享链接）
+
+内网穿透依赖「你的电脑开着」，简历或长期分享需要一条稳定地址。做法是把前后端合成**一个进程、一个端口**：
+FastAPI 既提供 `/api/*`，也把 Next.js 的静态产物挂在 `/`，浏览器与接口同源，不需要 Node 侧代理。
+
+```bash
+python scripts/build_deploy.py     # 构建前端静态产物 + 组装 dist/
+cd dist && PORT=8080 python server.py
+```
+
+产物很小（约 24MB），结构如下：
+
+```
+dist/
+  app/             后端代码
+  web/             前端静态产物（next export 的 out/）
+  data/models/     bge ONNX 模型（int8 量化，22.8MB，随包分发，启动不联网）
+  requirements.txt
+  server.py        读 PORT，bind 0.0.0.0
+  .env             由脚本生成，含真实 key，不要提交
+```
+
+几个关键设计：
+
+| 点 | 说明 |
+|---|---|
+| 静态导出 | `STATIC_EXPORT=1` 时 `next.config.ts` 切到 `output: "export"`；`app/api/*` 是本地开发用的代理，构建时会被临时移走（静态导出不允许 route handler） |
+| 构建并发 | Windows 上 `/404` 与 `/_not-found` 会并发写同一个 `404.html` 导致 `EPERM`，用 `experimental.staticGenerationMaxConcurrency: 1` 串行化 |
+| 模型 | 本地 bge 模型量化成 int8（91MB → 22.8MB）一起打包，启动只加载；检索结果与 fp32 基本一致（实测 0.725/0.699 vs 0.712/0.676） |
+| 嵌入降级 | 模型缺失时依次尝试 fastembed 下载 → 离线 hash 嵌入，保证任何机器都能起来（hash 只能关键词匹配，召回会下降） |
+| 鉴权头 | 托管平台网关可能覆写 `Authorization`，所以同时接受 `X-Auth-Token`；前端两个头都发，本地与线上都能用 |
+| 数据 | SQLite 与 Chroma 都在容器本地，冷启动自动建表、重建索引；单实例用内存会话 |
 
 ## 环境变量（backend/.env）
 
@@ -336,13 +373,15 @@ backend/
   scripts/    fetch_model.py
   tests/      9 个测试文件
 frontend/
-  app/api/    chat/route.ts（SSE 代理） [...path]/route.ts（通用代理，透传 token）
+  app/api/    chat/stream/route.ts（SSE 代理） [...path]/route.ts（通用代理，透传 token）
+              ↑ 仅本地开发用；静态导出时由构建脚本临时移出
   components/ ShopPilot AppHeader LoginCard ChatStream Composer ProductRail ProductCard
               CartDrawer blocks/{MessageBlocks,PlanProgress,ProductRow,CompareCard,
                                ReviewSummary,OrderCard,RefundCard}
   lib/        api.ts（401 自动登出） auth.ts sse.ts cart.tsx（Context）
               image.ts（canvas 压缩） speech.ts（识别 + 朗读） types.ts
   public/products/*.svg（本地商品插画，无外网依赖）
+scripts/      build_deploy.py（静态构建 + 组装 dist/）
 tools/        cloudflared.exe（首次运行自动下载，约 53MB，不入库）
 demo-remote.bat / demo-remote.ps1   一键起服务 + 公网隧道 + 自检
 ```

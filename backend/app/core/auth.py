@@ -169,12 +169,17 @@ class AuthContextMiddleware:
             return
 
         headers = Headers(scope=scope)
-        raw = headers.get("authorization", "")
+        # 优先读 X-Auth-Token：部分托管平台的网关会覆写 Authorization（塞自己的 token），
+        # 直接读 Authorization 会拿到别人的东西，全部解成 TOKEN_INVALID。
+        raw = headers.get("x-auth-token") or headers.get("authorization", "")
         user_id: str | None = None
         auth_error: str | None = None
         if raw.lower().startswith("bearer "):
+            raw = raw[7:]
+        raw = raw.strip()
+        if raw:
             try:
-                user_id = decode_token(raw[7:].strip())
+                user_id = decode_token(raw)
             except AuthError as exc:
                 auth_error = exc.code
 

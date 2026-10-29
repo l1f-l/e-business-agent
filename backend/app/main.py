@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.core.auth import AuthContextMiddleware
@@ -73,6 +74,19 @@ for router in (
     app.include_router(router)
 
 
-@app.get("/")
-def root() -> dict[str, str]:
+@app.get("/healthz")
+def healthz() -> dict[str, str]:
     return {"service": "shoppilot-agent", "version": "2.0.0", "docs": "/docs", "stream": "/api/chat/stream"}
+
+
+# 单端口部署：前端静态产物存在时，把它挂在最后兜底。
+# /api/*、/docs 先注册，因此不会被静态路由抢走；只有没命中的路径才落到静态文件。
+_web = settings.web_dist
+if _web.is_dir() and (_web / "index.html").exists():
+    app.mount("/", StaticFiles(directory=str(_web), html=True), name="web")
+    logger.info("已托管前端静态资源：%s", _web)
+else:
+
+    @app.get("/")
+    def root() -> dict[str, str]:
+        return {"service": "shoppilot-agent", "version": "2.0.0", "docs": "/docs", "stream": "/api/chat/stream"}
